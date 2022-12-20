@@ -2,29 +2,31 @@ from pydantic import BaseModel, EmailStr, Field, validator
 
 
 class UserBase(BaseModel):
+    username: str
     email: EmailStr | None = Field(example="email@email.com")
-    is_active: bool = Field(default=True)
-    is_superuser: bool = Field(default=False)
     full_name: str | None = Field(
         default=None, title="User full name", max_length=40, example="Name Surname"
     )
+    is_active: bool = Field(default=True)
+    is_superuser: bool = Field(default=False)
 
     class Config:
         schema_extra = {
             "example": {
+                "username": "user",
                 "email": "email@email.com",
+                "full_name": "Name Surname",
                 "is_active": True,
                 "is_superuser": False,
-                "full_name": "Name Surname",
             }
         }
 
-    @validator('full_name')
-    def name_must_contain_space(cls, v):
-        assert v.isalnum(), 'Full name must be alphanumeric'
-        if ' ' not in v:
-            raise ValueError('Full name must contain a space')
-        return v.title()
+    # @validator('full_name')
+    # def name_must_contain_space(cls, v):
+    #     assert v.isalnum(), 'Full name must be alphanumeric'
+    #     if ' ' not in v:
+    #         raise ValueError('Full name must contain a space')
+    #     return v.title()
 
 
 class UserCreate(UserBase):
