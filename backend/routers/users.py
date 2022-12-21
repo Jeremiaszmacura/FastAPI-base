@@ -1,15 +1,24 @@
+from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Path, HTTPException, Form, Depends
+from fastapi import APIRouter, Path, HTTPException, Form, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
-from dependencies import get_current_user
 
+from dependencies import get_current_user, get_current_active_user, authenticate_user, create_access_token
 from schemas import user
-from schemas.user import UserInDB
+from schemas.user import UserInDB, UserOut, UserBase
+from schemas.token import Token
+ 
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 router = APIRouter(
     prefix="/users",
     tags=["users"],
+    responses={404: {"description": "Not found"}},
+)
+
+token_router = APIRouter(
+    tags=["token"],
     responses={404: {"description": "Not found"}},
 )
 
@@ -21,7 +30,7 @@ fake_users_db = {
         "full_name": "Name Surname",
         "is_active": True,
         "is_superuser": False,
-        "hashed_password": "password"
+        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
     },
     "user2": {
         "username": "user2",
@@ -29,7 +38,7 @@ fake_users_db = {
         "full_name": "Name Surname",
         "is_active": True,
         "is_superuser": False,
-        "hashed_password": "password"
+        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
     },
 }
 
@@ -39,22 +48,23 @@ def hash_password(raw_password: str):
     return raw_password
 
 
-@router.post("/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    print(fake_users_db.get(form_data.username))
-    print(form_data)
-    user_dict = fake_users_db.get(form_data.username)
-    if not user_dict:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-    user = UserInDB(**user_dict)
-    hashed_password = hash_password(form_data.password)
-    if not hashed_password == user.hashed_password:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+@token_router.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
-    return {"access_token": user.username, "token_type": "bearer"}
 
-
-@router.post("/login/", response_model=user.UserOut)
+@router.post("/login/", response_model=UserOut)
 async def login(
     email: str = Form(title="User email", min_length=6, max_length=40),
     password: str = Form(title="User password", max_length=40)
@@ -62,31 +72,24 @@ async def login(
     return {"username": email, "password": password}
 
 
-# @router.get("/token/")
-# async def read_items(current_user: user.UserBase = Depends(get_current_user)):
-#     return {"current_user": current_user}
-
-
-# @router.get("/", response_model=list[user.UserOut])
-# async def read_users(
-#     current_user: models.User = Depends(deps.get_current_active_superuser)
-# ):
-#     return fake_users_db
-
-
-@router.get("/", response_model=list[user.UserOut])
+@router.get("/", response_model=list[UserOut])
 async def read_users():
     return fake_users_db
 
 
-@router.get("/{user_id}", response_model=user.UserOut)
+@router.get("/me")
+async def read_users_me(current_user: UserBase = Depends(get_current_active_user)):
+    return current_user
+
+
+@router.get("/{user_id}", response_model=UserOut)
 async def read_user(user_id: UUID = Path(title="The ID of the item to get")):
     if user_id not in fake_users_db:
         raise HTTPException(status_code=404, detail="User not found")
     return {"username": fake_users_db[user_id]["username"], "item_id": user_id}
 
 
-@router.post("/", status_code=201, response_model=user.UserOut)
+@router.post("/", status_code=201, response_model=UserOut)
 async def create_user(
     email: str = Form(title="User email", in_length=6, max_length=40),
     full_name: str = Form(title="User full name", max_length=40),

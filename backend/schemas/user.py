@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserBase(BaseModel):
@@ -11,6 +11,7 @@ class UserBase(BaseModel):
     is_superuser: bool = Field(default=False)
 
     class Config:
+        orm_mode = True
         schema_extra = {
             "example": {
                 "username": "user",
@@ -20,13 +21,6 @@ class UserBase(BaseModel):
                 "is_superuser": False,
             }
         }
-
-    # @validator('full_name')
-    # def name_must_contain_space(cls, v):
-    #     assert v.isalnum(), 'Full name must be alphanumeric'
-    #     if ' ' not in v:
-    #         raise ValueError('Full name must contain a space')
-    #     return v.title()
 
 
 class UserCreate(UserBase):
