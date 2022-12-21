@@ -2,10 +2,12 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class UserBase(BaseModel):
-    username: str
     email: EmailStr | None = Field(example="email@email.com")
-    full_name: str | None = Field(
-        default=None, title="User full name", max_length=40, example="Name Surname"
+    name: str = Field(
+        title="User Name", max_length=30, example="John"
+    )
+    surname: str = Field(
+        title="User Name", max_length=30, example="Kowalsky"
     )
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
@@ -14,9 +16,9 @@ class UserBase(BaseModel):
         orm_mode = True
         schema_extra = {
             "example": {
-                "username": "user",
                 "email": "email@email.com",
-                "full_name": "Name Surname",
+                "name": "John",
+                "surname": "Kowalsky",
                 "is_active": True,
                 "is_superuser": False,
             }
@@ -34,6 +36,8 @@ class UserCreate(UserBase):
     class Config:
         schema_extra = {
             "example": {
+                "name": "John",
+                "surname": "Kowalsky",
                 "email": "email@email.com",
                 "password": "Chdo123mFdu@S54",
                 "confirm_password": "Chdo123mFdu@S54",

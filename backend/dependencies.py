@@ -6,9 +6,10 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from schemas.user import UserInDB, UserBase
+from schemas.user import UserBase
 from schemas.token import TokenData
-
+from models import user_model
+from database import get_db
 
 # openssl rand -hex 32
 SECRET_KEY = "3b283936f458cc666c6dba93f4ec9b5cc5c7f8a54f8ff851c77063e9b88b716d"
@@ -17,25 +18,6 @@ ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-fake_users_db = {
-    "user1": {
-        "username": "user1",
-        "email": "email1@email.com",
-        "full_name": "Name Surname",
-        "is_active": True,
-        "is_superuser": False,
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
-    },
-    "user2": {
-        "username": "user2",
-        "email": "email1@email.com",
-        "full_name": "Name Surname",
-        "is_active": True,
-        "is_superuser": False,
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW"
-    },
-}
 
 
 def get_password_hash(password):
@@ -52,17 +34,12 @@ def fake_decode_token(token):
     )
 
 
-def get_user(db, username: str):
-    if username in db:
-        user_dict = db[username]
-        return UserInDB(**user_dict)
+def get_user_by_token(db: Session, email: str):
+    return db.query(user_model.User).filter(user_model.User.email == email).first()
 
 
-def authenticate_user(fake_db, username: str, password: str):
-    user = get_user(fake_db, username)
-    print("#@@#####")
-    print(user.hashed_password)
-    print(password)
+def authenticate_user(db: Session, email: str, password: str):
+    user = get_user_by_token(db, email)
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
@@ -81,7 +58,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -95,7 +72,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    user = get_user(fake_users_db, username=token_data.username)
+    user = get_user_by_token(db, email=token_data.username)
     if user is None:
         raise credentials_exception
     return user
@@ -105,13 +82,3 @@ async def get_current_active_user(current_user: UserBase = Depends(get_current_u
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
-
-
-async def get_token_header(x_token: str = Header()):
-    if x_token != "fake-super-secret-token":
-        raise HTTPException(status_code=400, detail="X-Token header invalid")
-
-
-async def get_query_token(token: str):
-    if token != "jessica":
-        raise HTTPException(status_code=400, detail="No Jessica token provided")
