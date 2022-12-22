@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from typing import Any
 
-from fastapi import Header, HTTPException, Depends, status
+from fastapi import HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -20,25 +21,19 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def get_password_hash(password):
+def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def fake_decode_token(token):
-    return UserBase(
-        username="user1", email="email@email.com", full_name="Name Surname", is_active=True, is_superuser=False
-    )
-
-
-def get_user_by_token(db: Session, email: str):
+def get_user_by_token(db: Session, email: str) -> user_model.User:
     return db.query(user_model.User).filter(user_model.User.email == email).first()
 
 
-def authenticate_user(db: Session, email: str, password: str):
+def authenticate_user(db: Session, email: str, password: str) -> user_model.User | bool:
     user = get_user_by_token(db, email)
     if not user:
         return False
@@ -47,7 +42,7 @@ def authenticate_user(db: Session, email: str, password: str):
     return user
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -58,7 +53,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-async def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+async def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> user_model.User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -78,7 +73,7 @@ async def get_current_user(db: Session = Depends(get_db), token: str = Depends(o
     return user
 
 
-async def get_current_active_user(current_user: UserBase = Depends(get_current_user)):
+async def get_current_active_user(current_user: UserBase = Depends(get_current_user)) -> user_model.User:
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user

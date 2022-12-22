@@ -39,6 +39,8 @@ class UserCreate(UserBase):
                 "name": "John",
                 "surname": "Kowalsky",
                 "email": "email@email.com",
+                "is_active": True,
+                "is_superuser": False,
                 "password": "Chdo123mFdu@S54",
                 "confirm_password": "Chdo123mFdu@S54",
             }
